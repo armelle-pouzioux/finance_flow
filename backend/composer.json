@@ -1,0 +1,14 @@
+{
+    "name": "financeflow/backend",
+    "description": "Backend API for FinanceFlow",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "vlucas/phpdotenv": "^5.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    }
+}
