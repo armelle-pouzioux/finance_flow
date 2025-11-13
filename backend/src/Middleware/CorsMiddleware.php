@@ -7,7 +7,7 @@ class CorsMiddleware
     public static function handle()
     {
         // Essayer plusieurs méthodes pour obtenir l'origine CORS
-        $origin = getenv('CORS_ORIGIN') ?: ($_ENV['CORS_ORIGIN'] ?? 'http://localhost:5174');
+        $origin = getenv('CORS_ORIGIN') ?: ($_ENV['CORS_ORIGIN'] ?? 'http://localhost:5173');
 
         header("Access-Control-Allow-Origin: $origin");
         header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
