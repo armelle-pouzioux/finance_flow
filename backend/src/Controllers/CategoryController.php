@@ -4,32 +4,14 @@ namespace App\Controllers;
 
 use App\Models\Category;
 use App\Utils\Response;
-use App\Utils\JWT;
 
-class CategoryController
+class CategoryController extends BaseController
 {
     private $categoryModel;
 
     public function __construct()
     {
         $this->categoryModel = new Category();
-    }
-
-    private function getUserIdFromToken()
-    {
-        $token = JWT::getBearerToken();
-
-        if (!$token) {
-            Response::error('Token manquant', 401);
-        }
-
-        $decoded = JWT::decode($token);
-
-        if (!$decoded) {
-            Response::error('Token invalide ou expiré', 401);
-        }
-
-        return $decoded['user_id'];
     }
 
     public function getAll()

@@ -4,9 +4,9 @@ namespace App\Controllers;
 
 use App\Models\Transaction;
 use App\Utils\Response;
-use App\Utils\JWT;
+use App\Utils\Validator;
 
-class TransactionController
+class TransactionController extends BaseController
 {
     private $transactionModel;
 
@@ -15,51 +15,31 @@ class TransactionController
         $this->transactionModel = new Transaction();
     }
 
-    private function getUserIdFromToken()
-    {
-        $token = JWT::getBearerToken();
-
-        if (!$token) {
-            Response::error('Token manquant', 401);
-        }
-
-        $decoded = JWT::decode($token);
-
-        if (!$decoded) {
-            Response::error('Token invalide ou expiré', 401);
-        }
-
-        return $decoded['user_id'];
-    }
-
     public function create()
     {
         $userId = $this->getUserIdFromToken();
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = $this->getJsonInput();
 
         // Validation
-        if (!isset($data['type']) || !isset($data['transaction_date']) || !isset($data['category_id']) || !isset($data['amount'])) {
-            Response::error('Tous les champs requis doivent être renseignés', 400);
+        $validator = new Validator($data);
+        $validator->required(['type', 'transaction_date', 'category_id', 'amount'])
+                  ->in('type', ['income', 'expense'])
+                  ->numeric('amount')
+                  ->min('amount', 0)
+                  ->integer('category_id');
+
+        if ($validator->fails()) {
+            Response::error($validator->firstError(), 400);
         }
 
-        $type = htmlspecialchars(strip_tags($data['type']));
-        $transactionDate = htmlspecialchars(strip_tags($data['transaction_date']));
-        $categoryId = intval($data['category_id']);
-        $subcategoryId = (isset($data['subcategory_id']) && $data['subcategory_id'] !== '' && $data['subcategory_id'] !== null) ? intval($data['subcategory_id']) : null;
-        $amount = floatval($data['amount']);
-        $description = isset($data['description']) ? htmlspecialchars(strip_tags($data['description'])) : '';
-        $title = (isset($data['title']) && $data['title'] !== '') ? htmlspecialchars(strip_tags($data['title'])) : null;
-        $location = (isset($data['location']) && $data['location'] !== '') ? htmlspecialchars(strip_tags($data['location'])) : null;
-
-        // Validation du type
-        if (!in_array($type, ['income', 'expense'])) {
-            Response::error('Type invalide (income ou expense)', 400);
-        }
-
-        // Validation du montant
-        if ($amount <= 0) {
-            Response::error('Le montant doit être supérieur à 0', 400);
-        }
+        $type = $validator->sanitize('type');
+        $transactionDate = $validator->sanitize('transaction_date');
+        $categoryId = $validator->getInt('category_id');
+        $subcategoryId = $validator->getInt('subcategory_id');
+        $amount = $validator->getFloat('amount');
+        $description = $validator->sanitize('description') ?? '';
+        $title = $validator->sanitize('title');
+        $location = $validator->sanitize('location');
 
         $transactionId = $this->transactionModel->create(
             $userId,
@@ -86,7 +66,10 @@ class TransactionController
     {
         $userId = $this->getUserIdFromToken();
 
-        $transactions = $this->transactionModel->findByUserId($userId);
+        // Récupérer les paramètres de filtre depuis l'URL
+        $categoryId = isset($_GET['category_id']) ? intval($_GET['category_id']) : null;
+
+        $transactions = $this->transactionModel->findByUserId($userId, $categoryId);
 
         Response::success('Transactions récupérées', [
             'transactions' => $transactions
@@ -111,7 +94,7 @@ class TransactionController
     public function update($id)
     {
         $userId = $this->getUserIdFromToken();
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = $this->getJsonInput();
 
         // Vérifier que la transaction existe
         $transaction = $this->transactionModel->findById($id, $userId);
@@ -120,28 +103,25 @@ class TransactionController
         }
 
         // Validation
-        if (!isset($data['type']) || !isset($data['transaction_date']) || !isset($data['category_id']) || !isset($data['amount'])) {
-            Response::error('Tous les champs requis doivent être renseignés', 400);
+        $validator = new Validator($data);
+        $validator->required(['type', 'transaction_date', 'category_id', 'amount'])
+                  ->in('type', ['income', 'expense'])
+                  ->numeric('amount')
+                  ->min('amount', 0)
+                  ->integer('category_id');
+
+        if ($validator->fails()) {
+            Response::error($validator->firstError(), 400);
         }
 
-        $type = htmlspecialchars(strip_tags($data['type']));
-        $transactionDate = htmlspecialchars(strip_tags($data['transaction_date']));
-        $categoryId = intval($data['category_id']);
-        $subcategoryId = (isset($data['subcategory_id']) && $data['subcategory_id'] !== '' && $data['subcategory_id'] !== null) ? intval($data['subcategory_id']) : null;
-        $amount = floatval($data['amount']);
-        $description = isset($data['description']) ? htmlspecialchars(strip_tags($data['description'])) : '';
-        $title = (isset($data['title']) && $data['title'] !== '') ? htmlspecialchars(strip_tags($data['title'])) : null;
-        $location = (isset($data['location']) && $data['location'] !== '') ? htmlspecialchars(strip_tags($data['location'])) : null;
-
-        // Validation du type
-        if (!in_array($type, ['income', 'expense'])) {
-            Response::error('Type invalide (income ou expense)', 400);
-        }
-
-        // Validation du montant
-        if ($amount <= 0) {
-            Response::error('Le montant doit être supérieur à 0', 400);
-        }
+        $type = $validator->sanitize('type');
+        $transactionDate = $validator->sanitize('transaction_date');
+        $categoryId = $validator->getInt('category_id');
+        $subcategoryId = $validator->getInt('subcategory_id');
+        $amount = $validator->getFloat('amount');
+        $description = $validator->sanitize('description') ?? '';
+        $title = $validator->sanitize('title');
+        $location = $validator->sanitize('location');
 
         $success = $this->transactionModel->update(
             $id,

@@ -5,8 +5,9 @@ namespace App\Controllers;
 use App\Models\User;
 use App\Utils\Response;
 use App\Utils\JWT;
+use App\Utils\Validator;
 
-class AuthController
+class AuthController extends BaseController
 {
     private $userModel;
 
@@ -17,26 +18,21 @@ class AuthController
 
     public function register()
     {
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = $this->getJsonInput();
 
         // Validation
-        if (!isset($data['email']) || !isset($data['password']) || !isset($data['username'])) {
-            Response::error('Tous les champs sont requis', 400);
+        $validator = new Validator($data);
+        $validator->required(['email', 'password', 'username'])
+                  ->email('email')
+                  ->minLength('password', 8);
+
+        if ($validator->fails()) {
+            Response::error($validator->firstError(), 400);
         }
 
-        $email = filter_var($data['email'], FILTER_SANITIZE_EMAIL);
-        $password = $data['password'];
-        $username = htmlspecialchars(strip_tags($data['username']));
-
-        // Validation email
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            Response::error('Email invalide', 400);
-        }
-
-        // Validation mot de passe
-        if (strlen($password) < 8) {
-            Response::error('Le mot de passe doit contenir au moins 8 caractères', 400);
-        }
+        $email = $validator->sanitizeEmail('email');
+        $password = $validator->get('password');
+        $username = $validator->sanitize('username');
 
         // Vérifier si l'email existe déjà
         if ($this->userModel->emailExists($email)) {
@@ -68,15 +64,18 @@ class AuthController
 
     public function login()
     {
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = $this->getJsonInput();
 
         // Validation
-        if (!isset($data['email']) || !isset($data['password'])) {
-            Response::error('Email et mot de passe requis', 400);
+        $validator = new Validator($data);
+        $validator->required(['email', 'password']);
+
+        if ($validator->fails()) {
+            Response::error($validator->firstError(), 400);
         }
 
-        $email = filter_var($data['email'], FILTER_SANITIZE_EMAIL);
-        $password = $data['password'];
+        $email = $validator->sanitizeEmail('email');
+        $password = $validator->get('password');
 
         // Trouver l'utilisateur
         $user = $this->userModel->findByEmail($email);
@@ -108,19 +107,9 @@ class AuthController
 
     public function me()
     {
-        $token = JWT::getBearerToken();
+        $userId = $this->getUserIdFromToken();
 
-        if (!$token) {
-            Response::error('Token manquant', 401);
-        }
-
-        $decoded = JWT::decode($token);
-
-        if (!$decoded) {
-            Response::error('Token invalide ou expiré', 401);
-        }
-
-        $user = $this->userModel->findById($decoded['user_id']);
+        $user = $this->userModel->findById($userId);
 
         if (!$user) {
             Response::error('Utilisateur non trouvé', 404);
@@ -133,35 +122,24 @@ class AuthController
 
     public function changePassword()
     {
-        $token = JWT::getBearerToken();
+        $userId = $this->getUserIdFromToken();
 
-        if (!$token) {
-            Response::error('Token manquant', 401);
-        }
-
-        $decoded = JWT::decode($token);
-
-        if (!$decoded) {
-            Response::error('Token invalide ou expiré', 401);
-        }
-
-        $data = json_decode(file_get_contents("php://input"), true);
+        $data = $this->getJsonInput();
 
         // Validation
-        if (!isset($data['currentPassword']) || !isset($data['newPassword'])) {
-            Response::error('Mot de passe actuel et nouveau mot de passe requis', 400);
+        $validator = new Validator($data);
+        $validator->required(['currentPassword', 'newPassword'])
+                  ->minLength('newPassword', 8);
+
+        if ($validator->fails()) {
+            Response::error($validator->firstError(), 400);
         }
 
-        $currentPassword = $data['currentPassword'];
-        $newPassword = $data['newPassword'];
-
-        // Validation du nouveau mot de passe
-        if (strlen($newPassword) < 8) {
-            Response::error('Le nouveau mot de passe doit contenir au moins 8 caractères', 400);
-        }
+        $currentPassword = $validator->get('currentPassword');
+        $newPassword = $validator->get('newPassword');
 
         // Récupérer le hash du mot de passe actuel
-        $currentHash = $this->userModel->getPasswordHash($decoded['user_id']);
+        $currentHash = $this->userModel->getPasswordHash($userId);
 
         if (!$currentHash) {
             Response::error('Utilisateur non trouvé', 404);
@@ -173,7 +151,7 @@ class AuthController
         }
 
         // Mettre à jour le mot de passe
-        if ($this->userModel->updatePassword($decoded['user_id'], $newPassword)) {
+        if ($this->userModel->updatePassword($userId, $newPassword)) {
             Response::success('Mot de passe modifié avec succès');
         } else {
             Response::error('Erreur lors de la modification du mot de passe', 500);

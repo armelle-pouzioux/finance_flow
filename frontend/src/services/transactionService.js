@@ -23,8 +23,18 @@ const transactionService = {
     return response.data;
   },
 
-  getAll: async () => {
-    const response = await api.get('/transactions');
+  getAll: async (filters = {}) => {
+    const params = new URLSearchParams();
+
+    // Ajouter le filtre de catégorie si présent
+    if (filters.categoryId) {
+      params.append('category_id', filters.categoryId);
+    }
+
+    const queryString = params.toString();
+    const url = queryString ? `/transactions?${queryString}` : '/transactions';
+
+    const response = await api.get(url);
     return response.data;
   },
 

@@ -3,15 +3,17 @@ import DashboardLayout from '../components/DashboardLayout';
 import BalanceCard from '../components/BalanceCard';
 import TransactionList from '../components/TransactionList';
 import TransactionDetailModal from '../components/TransactionDetailModal';
+import FilterBar from '../components/FilterBar';
 import { useTransactions } from '../hooks/useTransactions';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 const COLORS = ['#2EC4B6', '#FF6B6B', '#4ecd78ff', '#FFE66D', '#dbad2cff', '#F1FAEE'];
 
 function Dashboard() {
-  const { transactions, loadTransactions, calculateBalance } = useTransactions();
+  const { transactions, loadTransactions, calculateBalance, applyFilters } = useTransactions();
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState([]);
 
   // Dépenses par catégorie pour le graphique
   const expensesByCategory = transactions
@@ -65,11 +67,38 @@ function Dashboard() {
     handleCloseDetail();
   };
 
+  const handleFilterChange = (categories) => {
+    setSelectedCategories(categories);
+
+    // Si aucune catégorie n'est sélectionnée, afficher toutes les transactions
+    if (categories.length === 0) {
+      applyFilters({});
+    } else if (categories.length === 1) {
+      // Si une seule catégorie, utiliser le filtre backend
+      applyFilters({ categoryId: categories[0] });
+    } else {
+      // Si plusieurs catégories, charger toutes les transactions et filtrer côté client
+      // Note: Pour optimiser, on pourrait améliorer le backend pour accepter plusieurs IDs
+      applyFilters({});
+    }
+  };
+
+  // Filtrer côté client si plusieurs catégories sont sélectionnées
+  const filteredTransactions = selectedCategories.length > 1
+    ? transactions.filter(t => selectedCategories.includes(t.category_id))
+    : transactions;
+
   return (
     <DashboardLayout onTransactionSuccess={loadTransactions}>
       <BalanceCard balance={calculateBalance()} />
+
+      <FilterBar
+        selectedCategories={selectedCategories}
+        onFilterChange={handleFilterChange}
+      />
+
       <TransactionList
-        transactions={transactions}
+        transactions={filteredTransactions}
         showPagination={true}
         onTransactionClick={handleTransactionClick}
       />

@@ -38,17 +38,28 @@ class Transaction
         return false;
     }
 
-    public function findByUserId($userId)
+    public function findByUserId($userId, $categoryId = null)
     {
         $query = "SELECT t.*, c.name as category_name, sc.name as subcategory_name
                   FROM transactions t
                   LEFT JOIN categories c ON t.category_id = c.id
                   LEFT JOIN subcategories sc ON t.subcategory_id = sc.id
-                  WHERE t.user_id = :user_id
-                  ORDER BY t.transaction_date DESC, t.created_at DESC";
+                  WHERE t.user_id = :user_id";
+
+        // Ajouter le filtre par catégorie si spécifié
+        if ($categoryId !== null) {
+            $query .= " AND t.category_id = :category_id";
+        }
+
+        $query .= " ORDER BY t.transaction_date DESC, t.created_at DESC";
 
         $stmt = $this->db->prepare($query);
         $stmt->bindParam(':user_id', $userId);
+
+        if ($categoryId !== null) {
+            $stmt->bindParam(':category_id', $categoryId);
+        }
+
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

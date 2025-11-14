@@ -7,132 +7,90 @@ use App\Middleware\CorsMiddleware;
 use App\Controllers\AuthController;
 use App\Controllers\TransactionController;
 use App\Controllers\CategoryController;
-use App\Utils\Response;
+use App\Utils\Router;
 
 // Charger les variables d'environnement
 $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
 $dotenv->load();
 
-// Debug: vérifier que CORS_ORIGIN est chargé (à supprimer après test)
-error_log("CORS_ORIGIN from getenv: " . getenv('CORS_ORIGIN'));
-error_log("CORS_ORIGIN from _ENV: " . ($_ENV['CORS_ORIGIN'] ?? 'non défini'));
-
 // Gérer CORS
 CorsMiddleware::handle();
 
-// Récupérer la méthode HTTP et l'URI
-$method = $_SERVER['REQUEST_METHOD'];
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// Créer le router
+$router = new Router();
 
-// Retirer le préfixe du chemin complet (pour WAMP)
-$uri = str_replace('/finance-flow/backend/public', '', $uri);
-$uri = str_replace('/api', '', $uri); // Retirer le préfixe /api si présent
-
-// Router simple
 try {
-    switch ($uri) {
-        case '/auth/register':
-            if ($method === 'POST') {
-                $controller = new AuthController();
-                $controller->register();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    // Routes d'authentification
+    $router->post('/auth/register', function() {
+        $controller = new AuthController();
+        $controller->register();
+    });
 
-        case '/auth/login':
-            if ($method === 'POST') {
-                $controller = new AuthController();
-                $controller->login();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    $router->post('/auth/login', function() {
+        $controller = new AuthController();
+        $controller->login();
+    });
 
-        case '/auth/me':
-            if ($method === 'GET') {
-                $controller = new AuthController();
-                $controller->me();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    $router->get('/auth/me', function() {
+        $controller = new AuthController();
+        $controller->me();
+    });
 
-        case '/auth/change-password':
-            if ($method === 'PUT') {
-                $controller = new AuthController();
-                $controller->changePassword();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    $router->put('/auth/change-password', function() {
+        $controller = new AuthController();
+        $controller->changePassword();
+    });
 
-        case '/transactions':
-            $controller = new TransactionController();
-            if ($method === 'GET') {
-                $controller->getAll();
-            } elseif ($method === 'POST') {
-                $controller->create();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    // Routes des transactions
+    $router->get('/transactions', function() {
+        $controller = new TransactionController();
+        $controller->getAll();
+    });
 
-        case '/transactions/balance':
-            if ($method === 'GET') {
-                $controller = new TransactionController();
-                $controller->getBalance();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    $router->post('/transactions', function() {
+        $controller = new TransactionController();
+        $controller->create();
+    });
 
-        case '/categories':
-            if ($method === 'GET') {
-                $controller = new CategoryController();
-                $controller->getAll();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    $router->get('/transactions/balance', function() {
+        $controller = new TransactionController();
+        $controller->getBalance();
+    });
 
-        case '/subcategories':
-            if ($method === 'GET') {
-                $controller = new CategoryController();
-                $controller->getSubcategories();
-            } else {
-                Response::error('Méthode non autorisée', 405);
-            }
-            break;
+    $router->get('/transactions/{id}', function($id) {
+        $controller = new TransactionController();
+        $controller->getById($id);
+    });
 
-        default:
-            // Gérer les routes avec ID
-            if (preg_match('/^\/transactions\/(\d+)$/', $uri, $matches)) {
-                $id = $matches[1];
-                $controller = new TransactionController();
+    $router->put('/transactions/{id}', function($id) {
+        $controller = new TransactionController();
+        $controller->update($id);
+    });
 
-                if ($method === 'GET') {
-                    $controller->getById($id);
-                } elseif ($method === 'PUT') {
-                    $controller->update($id);
-                } elseif ($method === 'DELETE') {
-                    $controller->delete($id);
-                } else {
-                    Response::error('Méthode non autorisée', 405);
-                }
-            } elseif (preg_match('/^\/categories\/(\d+)\/subcategories$/', $uri, $matches)) {
-                $categoryId = $matches[1];
-                if ($method === 'GET') {
-                    $controller = new CategoryController();
-                    $controller->getSubcategories($categoryId);
-                } else {
-                    Response::error('Méthode non autorisée', 405);
-                }
-            } else {
-                Response::error('Route non trouvée', 404);
-            }
-            break;
-    }
+    $router->delete('/transactions/{id}', function($id) {
+        $controller = new TransactionController();
+        $controller->delete($id);
+    });
+
+    // Routes des catégories
+    $router->get('/categories', function() {
+        $controller = new CategoryController();
+        $controller->getAll();
+    });
+
+    $router->get('/subcategories', function() {
+        $controller = new CategoryController();
+        $controller->getSubcategories();
+    });
+
+    $router->get('/categories/{id}/subcategories', function($categoryId) {
+        $controller = new CategoryController();
+        $controller->getSubcategories($categoryId);
+    });
+
+    // Exécuter le router
+    $router->run();
+
 } catch (Exception $e) {
-    Response::error('Erreur serveur: ' . $e->getMessage(), 500);
+    \App\Utils\Response::error('Erreur serveur: ' . $e->getMessage(), 500);
 }

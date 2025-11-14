@@ -5,12 +5,14 @@ export function useTransactions() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [filters, setFilters] = useState({});
 
-  const loadTransactions = useCallback(async () => {
+  const loadTransactions = useCallback(async (customFilters = null) => {
     setLoading(true);
     setError('');
     try {
-      const response = await transactionService.getAll();
+      const appliedFilters = customFilters !== null ? customFilters : filters;
+      const response = await transactionService.getAll(appliedFilters);
       if (response.success) {
         setTransactions(response.data.transactions);
       }
@@ -20,7 +22,7 @@ export function useTransactions() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filters]);
 
   useEffect(() => {
     loadTransactions();
@@ -34,11 +36,18 @@ export function useTransactions() {
     }, 0);
   }, [transactions]);
 
+  const applyFilters = useCallback((newFilters) => {
+    setFilters(newFilters);
+    loadTransactions(newFilters);
+  }, [loadTransactions]);
+
   return {
     transactions,
     loading,
     error,
     loadTransactions,
     calculateBalance,
+    applyFilters,
+    filters,
   };
 }
